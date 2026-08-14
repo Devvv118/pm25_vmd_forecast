@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+data/raw/*.csv
+outputs/models/*
+outputs/results/*
+!outputs/models/.gitkeep
+!outputs/results/.gitkeep

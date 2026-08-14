@@ -1,0 +1,24 @@
+# Default pipeline hyperparameters. Override with --config path/to/other.yaml
+# or by editing this file directly.
+
+n_lags: 24        # hours of history used as model input
+k: 6              # number of VMD modes (IMFs)
+test_frac: 0.2    # fraction of series held out for testing (chronological split)
+
+vmd:
+  alpha: 2000.0   # bandwidth-constraint (reconstruction fidelity)
+  tau: 0.0        # noise tolerance
+  DC: false       # constrain first mode to 0-frequency
+  init: 1         # 1 = uniform init of center frequencies
+  tol: 1.0e-7     # convergence tolerance
+
+bp:
+  hidden_layer_sizes: [64, 32]
+  max_iter: 500
+  random_state: 42
+
+lstm:
+  hidden_size: 32
+  epochs: 30
+  lr: 0.001
+  batch_size: 64
