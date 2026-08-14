@@ -22,13 +22,15 @@ class LSTMForecaster(Forecaster):
     name = "LSTM"
 
     def __init__(self, hidden_size=32, num_layers=1, epochs=30, lr=1e-3,
-                 batch_size=64, device="cpu"):
+                 batch_size=64, device=None):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.epochs = epochs
         self.lr = lr
         self.batch_size = batch_size
-        self.device = device
+        # Auto-detect: use a GPU if one is available, otherwise fall back
+        # to CPU. Pass device="cpu" explicitly to force CPU regardless.
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model = None
         self._mean = 0.0
         self._std = 1.0
