@@ -1,10 +1,10 @@
 """
-Generate plots from a station's saved results (*_results.json) and
+Generate plots from a series' saved results (*_results.json) and
 artifacts (*_artifacts.npz): actual-vs-predicted curves, metric comparison
 bars, the VMD decomposition, and per-IMF error.
 
 Usage:
-    python scripts/plot_results.py --station PRSA_Data_Aotizhongxin_20130301-20170228
+    python scripts/plot_results.py --station chennai_pm25
     python scripts/plot_results.py --all
 """
 import argparse
@@ -40,7 +40,7 @@ def plot_predictions_vs_actual(artifacts: dict, out_path: str, n_points: int = 5
 
     ax.set_title(f"Actual vs predicted PM2.5 (last {n_points} test hours)")
     ax.set_xlabel("Time")
-    ax.set_ylabel("PM2.5 (µg/m³)")
+    ax.set_ylabel("PM2.5 (\u00b5g/m\u00b3)")
     ax.legend(loc="upper right", fontsize=8)
     fig.autofmt_xdate()
     fig.tight_layout()
@@ -154,8 +154,8 @@ def plot_station(station: str, results_dir: str, plots_dir: str, n_points: int):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--station", help="Station name, matching <station>_results.json")
-    parser.add_argument("--all", action="store_true", help="Plot every station found in results_dir")
+    parser.add_argument("--station", help="Series name, matching <name>_results.json")
+    parser.add_argument("--all", action="store_true", help="Plot every series found in results_dir")
     parser.add_argument("--results_dir", default="outputs/results")
     parser.add_argument("--plots_dir", default="outputs/plots")
     parser.add_argument("--n_points", type=int, default=500,

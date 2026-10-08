@@ -1,5 +1,5 @@
-# Default pipeline hyperparameters. Override with --config path/to/other.yaml
-# or by editing this file directly.
+# Default pipeline hyperparameters and data-fetch settings.
+# Override with --config path/to/other.yaml or by editing this file directly.
 
 n_lags: 24        # hours of history used as model input
 k: 6              # number of VMD modes (IMFs)
@@ -22,3 +22,18 @@ lstm:
   epochs: 30
   lr: 0.001
   batch_size: 64
+
+# Used by scripts/fetch_data.py
+openaq:
+  city: chennai
+  lat: 13.0827
+  lon: 80.2707
+  radius_m: 25000            # OpenAQ's max allowed radius per request (25 km)
+  datetime_from: "2026-04-01"  # inclusive, local (IST) date
+  datetime_to: "2026-09-30"    # inclusive, local (IST) date -> 4392 hourly slots (6 months)
+  timezone: Asia/Kolkata
+  merge_method: mean         # "mean" or "median" across stations
+  min_station_coverage: 0.5  # drop stations with < 50% of the window's hours
+  min_coverage_pct: 0.0      # drop hours with API-reported coverage below this (0 = off)
+  max_value: 1000.0          # ug/m3; larger values treated as sensor faults
+  min_stations: 1            # min stations per merged hour

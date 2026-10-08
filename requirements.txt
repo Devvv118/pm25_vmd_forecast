@@ -5,3 +5,5 @@ vmdpy
 torch
 pyyaml
 matplotlib
+requests
+python-dotenv

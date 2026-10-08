@@ -1,156 +1,102 @@
-# Hourly PM2.5 Forecasting — Hybrid VMD + Neural Network
+# Chennai Hourly PM2.5 Forecasting — Hybrid VMD + Neural Network
 
-Decomposes the PM2.5 series with VMD, forecasts each mode with BP (MLP) /
-LSTM, fuses the mode forecasts, and benchmarks against single-model and
-persistence baselines.
+Fetches Chennai PM2.5 from the OpenAQ API, fuses all nearby stations into one
+composite hourly series, then compares: persistence baseline, single BP/LSTM,
+and hybrid VMD+BP / VMD+LSTM (one model per IMF, forecasts summed).
 
-## Repo structure
-
-```
-pm25_vmd_forecast/
-├── configs/
-│   └── default.yaml         # every hyperparameter lives here
-├── data/raw/                 # put PRSA_Data_*.csv (or CPCB/OpenAQ) files here
-├── outputs/
-│   ├── models/               # (optional) saved checkpoints
-│   └── results/              # metrics JSON / summary.csv written here
-├── src/
-│   ├── config.py             # Config dataclass + YAML loader
-│   ├── data/
-│   │   ├── preprocessing.py  # hourly reindex + gap interpolation
-│   │   └── loader.py         # CSV -> clean PM2.5 series, station discovery
-│   ├── decomposition/
-│   │   └── vmd.py            # VMD wrapper
-│   ├── features/
-│   │   └── windowing.py      # chronological split + lag-window arrays
-│   ├── models/
-│   │   ├── base.py           # Forecaster interface (fit/predict/name)
-│   │   ├── bp.py              # MLPRegressor implementing the interface
-│   │   ├── lstm.py            # PyTorch LSTM implementing the interface
-│   │   └── registry.py        # config -> list of model factories
-│   ├── evaluation/
-│   │   └── metrics.py         # MAE / RMSE / MAPE / R2 + persistence
-│   ├── pipeline/
-│   │   ├── baseline.py        # stage 1: persistence baseline
-│   │   ├── single_model.py    # stage 2: models on raw PM2.5
-│   │   ├── hybrid_vmd.py      # stage 3: VMD -> per-IMF models -> fusion
-│   │   └── orchestrator.py    # wires stages 1-3 together for one station
-│   └── utils/
-│       └── io.py              # save/load JSON
-├── scripts/
-│   └── run_all.py             # loop the orchestrator over every station CSV
-├── main.py                    # thin CLI: run the orchestrator for one station
-├── requirements.txt
-└── README.md
-```
-
-**Why split it this way:** `main.py` and `scripts/run_all.py` both just call
-`src/pipeline/orchestrator.py::run_pipeline_for_station`, so the single-station
-and batch entry points can never drift apart. Each pipeline stage
-(`baseline.py`, `single_model.py`, `hybrid_vmd.py`) does one thing. BP and
-LSTM both implement the same `Forecaster` interface (`fit`/`predict`/`name`),
-so the pipeline code loops over models generically instead of duplicating
-logic for each model type — adding a GRU or ARIMA model later means writing
-one new file in `src/models/` and adding it to `registry.py`, nothing else
-changes.
-
-## Setup
+## Quick start
 
 ```bash
 pip install -r requirements.txt
-```
 
-Place station CSVs into `data/raw/` (UCI Beijing Multi-Site Air Quality
-dataset, or CPCB/OpenAQ data reshaped to the same columns: `year, month,
-day, hour, PM2.5, ...`).
+# 1. Get a free API key: https://explore.openaq.org/register
+#    then copy .env.example to .env and paste your key in it (loaded automatically)
+cp .env.example .env
 
-## Run — one station
+# 2. Fetch + merge Chennai data (1 Apr - 30 Sep 2026)  ->  data/raw/chennai_pm25.csv
+python scripts/fetch_data.py --dry_run   # optional: just list stations/sensors
+python scripts/fetch_data.py
 
-```bash
-python main.py --csv data/raw/PRSA_Data_Aotizhongxin_20130301-20170228.csv
-```
+# 3. Train + evaluate everything
+python main.py
 
-Optional flags: `--config configs/default.yaml` (hyperparameters),
-`--out_dir outputs/results`.
+# 4. Plots -> outputs/plots/chennai_pm25/
+python scripts/plot_results.py --station chennai_pm25
 
-## Run — every station + cross-city summary
-
-```bash
-python scripts/run_all.py --raw_dir data/raw
-```
-
-Writes one JSON per station plus `outputs/results/summary.csv`, a flat
-table of MAE/RMSE/MAPE/R2 per model per station — this is the benchmarking
-artifact for comparing hybrid vs single models vs persistence, and (once
-you add non-Beijing CSVs) across cities.
-
-## What each run produces
-
-- **Persistence** — naive PM2.5(t+1) = PM2.5(t)
-- **Single_BP / Single_LSTM** — model trained directly on raw PM2.5
-- **VMD_BP / VMD_LSTM** — VMD decomposition into `k` IMFs, one BP/LSTM per
-  IMF, forecasts summed (fusion) into a single PM2.5 prediction
-- **per_IMF** — MAE/RMSE/MAPE/R2 for each individual IMF forecast
-
-## Leakage-safety note
-
-Objective 1 requires VMD to be fit on training data only. This is enforced
-by calling VMD **separately** on the train segment and the test segment
-(`src/decomposition/vmd.py`, invoked twice in `hybrid_vmd.py`) — each call
-only ever sees data within its own segment. The train/test split itself is
-strictly chronological (`src/features/windowing.py`), never shuffled.
-
-## Configuration
-
-All tunable values (`n_lags`, `k`, `test_frac`, VMD/BP/LSTM hyperparameters)
-live in `configs/default.yaml`, loaded into a `Config` dataclass
-(`src/config.py`). Copy the file, edit it, and pass `--config your_file.yaml`
-rather than touching code.
-
-## Plotting results
-
-Every run now saves two files per station instead of one:
-
-- `outputs/results/<station>_results.json` — the metrics (unchanged from before)
-- `outputs/results/<station>_artifacts.npz` — actual/predicted arrays (with
-  timestamps) for every model, plus the raw train/test VMD decomposition
-
-Turn those into plots with:
-
-```bash
-python scripts/plot_results.py --station PRSA_Data_Aotizhongxin_20130301-20170228
-# or, for every station you've already run:
-python scripts/plot_results.py --all
-```
-
-This writes to `outputs/plots/<station>/`:
-
-- `predictions_vs_actual.png` — actual PM2.5 vs every model's prediction, last N test hours
-- `metrics_comparison.png` — grouped MAE/RMSE/MAPE bars across models
-- `r2_comparison.png` — R2 bars (kept separate since it's a different scale)
-- `imf_decomposition.png` — one subplot per IMF, train segment vs test segment
-- `per_imf_error.png` — MAE per IMF, grouped by model (BP vs LSTM)
-
-`--n_points` controls how many test hours the actual-vs-predicted plot shows (default 500).
-
-## Cleaning up
-
-```bash
+# Clean generated outputs (keeps data/raw)
 bash scripts/clean.sh
 ```
 
-Removes everything a run generates — `outputs/results/*`, `outputs/models/*`,
-`outputs/plots/*`, and all `__pycache__`/`*.pyc` files — while keeping the
-folder structure (`.gitkeep` files) intact.
+## What changed vs. the Beijing project
 
-## Extending
+| Before (Beijing/PRSA) | Now (Chennai/OpenAQ) |
+|---|---|
+| Local CSVs, 12 stations | Data pulled live from OpenAQ v3 API |
+| Each station run and compared separately | All stations near Chennai **fused into one composite series** (mean or median per hour) |
+| Station-vs-station summary table | One city-level forecast; `run_all.py` kept only for optional multi-series runs |
 
-- **New model type** (e.g. GRU, ARIMA): implement `Forecaster` in
-  `src/models/`, add it to `build_model_factories()` in
-  `src/models/registry.py`. The pipeline stages need no changes.
-- **New decomposition method** (EMD/EEMD): add a module under
-  `src/decomposition/` with the same `(signal, ...) -> (K, len(signal))`
-  contract as `vmd_decompose`, then swap it into `hybrid_vmd.py`.
-- **Exogenous features** (TEMP, PRES, DEWP, WSPM, RAIN): extend
-  `make_supervised` in `src/features/windowing.py` to stack extra columns
-  into the lag window.
+Why fuse: OpenAQ stations inside one city are typically gappy. Averaging across
+them fills individual dropouts and reduces single-sensor noise, and the goal is
+one good Chennai forecast, not a station leaderboard. Per-station raw CSVs are
+still saved (`data/raw/chennai_<id>_<name>.csv`) so you can run any one of them:
+`python main.py --csv data/raw/chennai_<id>_<name>.csv`.
+
+Models evaluated are unchanged: Persistence, Single_BP, Single_LSTM, VMD_BP,
+VMD_LSTM, plus per-IMF errors.
+
+## Data fetching (30-day window)
+
+Default window is **1 Apr - 30 Sep 2026, inclusive, in local IST time** (4,392 hourly
+slots, 6 months). Timestamps in all CSVs are naive IST. Changes from the first version:
+
+- Window is sent to the API with an explicit `+05:30` offset (previously bare
+  dates were read as UTC, shifting the window by 5.5 h and cutting off the 30th).
+- Retries on 429 **and** 5xx/network errors; honours `Retry-After` and
+  `x-ratelimit-*` headers; clear errors for bad API keys / bad parameters.
+- `/locations` is paginated; sensors are read from the `/locations` response
+  (one fewer API call per station); stations whose data ends before / starts
+  after the window are skipped without any download.
+- Cleaning: negatives and values > `max_value` dropped, hours outside the window
+  dropped, optional per-hour API coverage filter, duplicate hours removed.
+- Stations with < `min_station_coverage` (50%) of the window's hours are
+  excluded so a gappy station can't make the merged mean jump around.
+- Merge uses the explicit file list from the current run (stale CSVs from earlier
+  runs can't leak in) and records `n_stations` per hour.
+- `data/raw/fetch_report.csv` shows why each station was kept or dropped.
+- `--dry_run` lists stations/sensors without downloading data.
+
+## Configuration
+
+Everything lives in `configs/default.yaml` (partial `openaq:` blocks are merged
+with defaults). Any value can be overridden on `scripts/fetch_data.py`
+(`--datetime_from`, `--radius_m`, `--min_station_coverage`, ...).
+
+## Layout
+
+```
+configs/default.yaml
+scripts/  fetch_data.py  run_all.py  plot_results.py  clean.sh
+main.py
+src/
+  config.py
+  data/        openaq_client.py  fetch.py  merge.py  loader.py
+  decomposition/vmd.py
+  features/windowing.py
+  models/      base.py  bp.py  lstm.py  registry.py
+  evaluation/metrics.py
+  pipeline/    baseline.py  single_model.py  hybrid_vmd.py  orchestrator.py
+  utils/io.py
+```
+
+## Notes and caveats
+
+- **OpenAQ coverage varies.** Chennai may have few stations and gaps in the
+  date range you choose. If `fetch_data.py` reports no stations/data, widen
+  `--radius_m` (max 25000, an OpenAQ limit) or change the date range. Hours
+  missing from *every* station stay missing; gaps up to 6 hours are
+  time-interpolated, longer gaps are dropped (see `src/data/loader.py`).
+- **Leakage safety:** VMD runs separately on the train and test segments, and
+  the split is chronological. VMD returns one sample fewer for odd-length
+  input; `hybrid_vmd.py` handles this by trimming the series to match.
+- **LSTM** uses a GPU automatically if PyTorch detects one, else CPU.
+- With ~4,400 hours the test set is ~880 hours; a longer range gives more stable comparisons.
