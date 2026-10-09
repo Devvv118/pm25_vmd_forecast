@@ -2,10 +2,10 @@ __pycache__/
 venv/
 *.pyc
 .env
-data/raw/*.csv
-outputs/models/*
-outputs/results/*
-outputs/plots/*
-!outputs/models/.gitkeep
-!outputs/results/.gitkeep
-!outputs/plots/.gitkeep
+# data/raw/*.csv
+# outputs/models/*
+# outputs/results/*
+# outputs/plots/*
+# !outputs/models/.gitkeep
+# !outputs/results/.gitkeep
+# !outputs/plots/.gitkeep

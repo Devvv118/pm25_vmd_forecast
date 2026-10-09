@@ -1,0 +1,12 @@
+location_id,name,sensor_ids,hours,coverage,status
+378,Alandur Bus Depot,,0,0.0,skipped: last data 2018-02-22 is before window
+2461,US Diplomatic Post: Chennai,,0,0.0,skipped: last data 2016-11-09 is before window
+2549,IIT,,0,0.0,skipped: last data 2018-02-22 is before window
+2586,"Manali, Chennai - CPCB",14319 12235653,3579,0.815,saved
+5655,"Velachery Res. Area, Chennai - CPCB",12235531 15136,3974,0.905,saved
+8558,Chennai,5077812,3631,0.827,saved
+10780,"Manali Village, Chennai - TNPCB",12235796 36018,3887,0.885,saved
+11578,"Royapuram, Chennai - TNPCB",12236299 39321,3636,0.828,saved
+11579,"Kodungaiyur, Chennai - TNPCB",39326 12236308,3762,0.857,saved
+11581,"Arumbakkam, Chennai - TNPCB",12236274 39335,3710,0.845,saved
+12046,"Perungudi, Chennai - TNPCB",12236290,3722,0.847,saved
