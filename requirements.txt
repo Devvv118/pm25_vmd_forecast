@@ -7,3 +7,5 @@ pyyaml
 matplotlib
 requests
 python-dotenv
+statsmodels
+joblib

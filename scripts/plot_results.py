@@ -16,6 +16,7 @@ import sys
 import matplotlib
 matplotlib.use("Agg")  # no display needed; just write PNG files
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,7 +26,7 @@ from src.utils.io import load_json, load_artifacts
 
 def plot_predictions_vs_actual(artifacts: dict, out_path: str, n_points: int = 500):
     """Overlay each model's last `n_points` test-hour predictions against actual PM2.5."""
-    model_keys = [k for k in artifacts if k != "imfs"]
+    model_keys = [k for k in artifacts if not k.startswith("imfs")]
 
     fig, ax = plt.subplots(figsize=(14, 6))
     plotted_actual = False
@@ -36,9 +37,13 @@ def plot_predictions_vs_actual(artifacts: dict, out_path: str, n_points: int = 5
         if not plotted_actual:
             ax.plot(ts, actual, label="Actual", color="black", linewidth=1.6)
             plotted_actual = True
-        ax.plot(ts, pred, label=key, alpha=0.8, linewidth=1.1)
+        line, = ax.plot(ts, pred, label=key, alpha=0.8, linewidth=1.1)
+        sd = artifacts[key].get("predicted_std")
+        if sd is not None and np.any(sd > 0):      # seed spread (+/- 1 SD across training seeds)
+            sd = sd[-n_points:]
+            ax.fill_between(ts, pred - sd, pred + sd, color=line.get_color(), alpha=0.15, linewidth=0)
 
-    ax.set_title(f"Actual vs predicted PM2.5 (last {n_points} test hours)")
+    ax.set_title(f"Actual vs predicted PM2.5 (last {n_points} test hours; bands = \u00b11 SD over seeds)")
     ax.set_xlabel("Time")
     ax.set_ylabel("PM2.5 (\u00b5g/m\u00b3)")
     ax.legend(loc="upper right", fontsize=8)
@@ -50,7 +55,7 @@ def plot_predictions_vs_actual(artifacts: dict, out_path: str, n_points: int = 5
 
 def plot_metrics_bar(results: dict, out_path: str):
     """Grouped bar chart of MAE/RMSE/MAPE across every top-level model."""
-    model_keys = [k for k in results if k != "per_IMF"]
+    model_keys = [k for k in results if k not in ("per_IMF", "_meta")]
     metric_names = ["MAE", "RMSE", "MAPE"]
 
     x = range(len(model_keys))
@@ -58,7 +63,8 @@ def plot_metrics_bar(results: dict, out_path: str):
     fig, ax = plt.subplots(figsize=(10, 6))
     for i, metric in enumerate(metric_names):
         values = [results[m][metric] for m in model_keys]
-        ax.bar([xi + i * width for xi in x], values, width, label=metric)
+        errs = [results[m].get(f"{metric}_std", 0.0) for m in model_keys]
+        ax.bar([xi + i * width for xi in x], values, width, yerr=errs, capsize=2, label=metric)
 
     ax.set_xticks([xi + width for xi in x])
     ax.set_xticklabels(model_keys, rotation=30, ha="right")
@@ -72,11 +78,12 @@ def plot_metrics_bar(results: dict, out_path: str):
 
 def plot_r2_bar(results: dict, out_path: str):
     """R2 needs its own chart since it's on a different scale than MAE/RMSE."""
-    model_keys = [k for k in results if k != "per_IMF"]
+    model_keys = [k for k in results if k not in ("per_IMF", "_meta")]
     values = [results[m]["R2"] for m in model_keys]
+    errs = [results[m].get("R2_std", 0.0) for m in model_keys]
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(model_keys, values, color="teal")
+    ax.bar(model_keys, values, yerr=errs, capsize=3, color="teal")
     ax.tick_params(axis="x", rotation=30)
     for label in ax.get_xticklabels():
         label.set_ha("right")
@@ -87,9 +94,9 @@ def plot_r2_bar(results: dict, out_path: str):
     plt.close(fig)
 
 
-def plot_imf_decomposition(artifacts: dict, out_path: str):
+def plot_imf_decomposition(artifacts: dict, out_path: str, key: str = "imfs", title: str = None):
     """One subplot per IMF, showing the train and test segments."""
-    imf_data = artifacts.get("imfs")
+    imf_data = artifacts.get(key)
     if imf_data is None:
         return
 
@@ -108,7 +115,7 @@ def plot_imf_decomposition(artifacts: dict, out_path: str):
         if i == 0:
             axes[i].legend(loc="upper right", fontsize=8)
     axes[-1].set_xlabel("Time")
-    fig.suptitle("VMD decomposition (train fit separately from test — see README)")
+    fig.suptitle(title or "VMD decomposition (retrospective: each segment decomposed as a whole)")
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
@@ -147,6 +154,9 @@ def plot_station(station: str, results_dir: str, plots_dir: str, n_points: int):
     plot_metrics_bar(results, os.path.join(out_dir, "metrics_comparison.png"))
     plot_r2_bar(results, os.path.join(out_dir, "r2_comparison.png"))
     plot_imf_decomposition(artifacts, os.path.join(out_dir, "imf_decomposition.png"))
+    plot_imf_decomposition(artifacts, os.path.join(out_dir, "imf_decomposition_causal.png"),
+                           key="imfs_causal",
+                           title="Causal (rolling) VMD modes: value at t uses data up to t only")
     plot_per_imf_error(results, os.path.join(out_dir, "per_imf_error.png"))
 
     print(f"Plots saved to {out_dir}/")

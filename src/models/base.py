@@ -1,9 +1,9 @@
-"""Common interface every forecaster (BP, LSTM, ...) implements.
+"""Common interface every forecaster (BP, LSTM, GBM, ...) implements.
 
-Keeping this interface tiny (fit/predict + a `name`) means the pipeline
-code never needs to know which model it's running — it just loops over
-a list of forecasters. Adding a new model type later (e.g. GRU) only
-means writing one new class here, nothing in pipeline/ changes.
+`fit` optionally receives a chronological validation block, used to pick the
+number of training epochs/iterations (early stopping) instead of a fixed count.
+`stochastic` tells the pipeline whether repeating with different seeds is
+meaningful (True for neural nets; False for deterministic models).
 """
 from abc import ABC, abstractmethod
 
@@ -12,9 +12,11 @@ import numpy as np
 
 class Forecaster(ABC):
     name: str
+    stochastic: bool = True
 
     @abstractmethod
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> "Forecaster":
+    def fit(self, X_train: np.ndarray, y_train: np.ndarray,
+            X_val: np.ndarray = None, y_val: np.ndarray = None) -> "Forecaster":
         ...
 
     @abstractmethod

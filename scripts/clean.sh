@@ -16,6 +16,9 @@ find . -type f -name "*.pyc" -delete
 echo "Removing generated results..."
 find outputs/results -type f ! -name ".gitkeep" -delete
 
+echo "Removing cached causal-VMD modes..."
+rm -rf outputs/cache
+
 echo "Removing saved model checkpoints..."
 find outputs/models -type f ! -name ".gitkeep" -delete
 

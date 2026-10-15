@@ -14,14 +14,35 @@ vmd:
 
 bp:
   hidden_layer_sizes: [64, 32]
-  max_iter: 500
-  random_state: 42
+  max_epochs: 200
+  patience: 15
+  lr: 0.001
 
 lstm:
   hidden_size: 32
-  epochs: 30
+  num_layers: 1
+  epochs: 100     # maximum; early stopping on the validation block
+  patience: 10
   lr: 0.001
   batch_size: 64
+
+gbm:
+  max_iter: 400
+  learning_rate: 0.05
+  max_leaf_nodes: 31
+
+baselines:
+  seasonal_naive: true
+  sarima: true
+  sarima_order: [2, 0, 1]
+  sarima_seasonal_order: [1, 0, 1, 24]
+  sarima_max_fit_hours: 2000
+  gbm: true
+  lstm_tuned: true
+  tuning_grid:
+    hidden_size: [32, 64, 128]
+    num_layers: [1, 2]
+    lr: [0.001, 0.003]
 
 # Used by scripts/fetch_data.py
 openaq:
@@ -29,8 +50,8 @@ openaq:
   lat: 13.0827
   lon: 80.2707
   radius_m: 25000            # OpenAQ's max allowed radius per request (25 km)
-  datetime_from: "2026-04-01"  # inclusive, local (IST) date
-  datetime_to: "2026-09-30"    # inclusive, local (IST) date -> 4392 hourly slots (6 months)
+  datetime_from: "2025-10-01"  # inclusive, local (IST) date
+  datetime_to: "2026-09-30"    # inclusive, local (IST) date -> 12 months (includes NE monsoon / winter)
   timezone: Asia/Kolkata
   merge_method: mean         # "mean" or "median" across stations
   min_station_coverage: 0.5  # drop stations with < 50% of the window's hours

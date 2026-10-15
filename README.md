@@ -13,7 +13,7 @@ pip install -r requirements.txt
 #    then copy .env.example to .env and paste your key in it (loaded automatically)
 cp .env.example .env
 
-# 2. Fetch + merge Chennai data (1 Apr - 30 Sep 2026)  ->  data/raw/chennai_pm25.csv
+# 2. Fetch + merge Chennai data (1 Oct 2025 - 30 Sep 2026)  ->  data/raw/chennai_pm25.csv
 python scripts/fetch_data.py --dry_run   # optional: just list stations/sensors
 python scripts/fetch_data.py
 
@@ -41,13 +41,23 @@ one good Chennai forecast, not a station leaderboard. Per-station raw CSVs are
 still saved (`data/raw/chennai_<id>_<name>.csv`) so you can run any one of them:
 `python main.py --csv data/raw/chennai_<id>_<name>.csv`.
 
-Models evaluated are unchanged: Persistence, Single_BP, Single_LSTM, VMD_BP,
-VMD_LSTM, plus per-IMF errors.
+## Evaluation design (reviewer-driven changes)
+
+| Review comment | What the code does now |
+|---|---|
+| Retrospective VMD leaks future info | `VMD_*_causal`: rolling VMD at every forecast origin (`src/decomposition/rolling.py`, window `causal_window`, cached in `outputs/cache/`). `VMD_*_retrospective` is kept for side-by-side comparison. Modes are sorted by centre frequency so mode i is the same band everywhere. |
+| Train/test modes are different signals | Causal modes come from one identical procedure for train and test. `results["_meta"]["mode_diagnostics"]` reports dominant period per mode (train vs test) and reconstruction RMSE (train vs test). |
+| One run, no seed, no validation, fixed epochs | `n_seeds` (default 10) runs per stochastic model; scores are mean over seeds with `<metric>_std`. The last `val_frac` of the training samples is a chronological validation block used for early stopping and LSTM tuning. Seed spread is drawn in the prediction plot and as error bars. |
+| One season only / composite changes | Default fetch window is 12 months (2025-10-01 to 2026-09-30). `n_stations` is used as a covariate (`use_n_stations`). Station-level runs: `python scripts/run_all.py --pattern "chennai_*.csv"`. |
+| Thin baselines | Added `SeasonalNaive_24`, `SARIMA`, `Single_GBM` and `Single_LSTM_tuned` (grid searched on the validation block). |
+| Metric fixes | Persistence scored on the same hours as all models; MASE added; MAPE excludes zero actuals, with `n_zero_actual` / `n_zero_hours_in_test` reported; `top_decile` gives MAE/RMSE only (no R2); residual lag-1 autocorrelation (`resid_acf1`) added. |
+
+Flags: `--n_seeds 3`, `--no_causal`, `--no_retrospective`. The causal run costs one VMD
+per hour (parallelised, cached after the first run).
 
 ## Data fetching (30-day window)
 
-Default window is **1 Apr - 30 Sep 2026, inclusive, in local IST time** (4,392 hourly
-slots, 6 months). Timestamps in all CSVs are naive IST. Changes from the first version:
+Default window is **1 Oct 2025 - 30 Sep 2026, inclusive, in local IST time** (12 months). Timestamps in all CSVs are naive IST. Changes from the first version:
 
 - Window is sent to the API with an explicit `+05:30` offset (previously bare
   dates were read as UTC, shifting the window by 5.5 h and cutting off the 30th).
@@ -95,8 +105,9 @@ src/
   `--radius_m` (max 25000, an OpenAQ limit) or change the date range. Hours
   missing from *every* station stay missing; gaps up to 6 hours are
   time-interpolated, longer gaps are dropped (see `src/data/loader.py`).
-- **Leakage safety:** VMD runs separately on the train and test segments, and
-  the split is chronological. VMD returns one sample fewer for odd-length
-  input; `hybrid_vmd.py` handles this by trimming the series to match.
-- **LSTM** uses a GPU automatically if PyTorch detects one, else CPU.
+- **Leakage:** decomposing train and test separately does NOT make VMD causal
+  (each mode value depends on later samples in its segment). Only `*_causal` models
+  are leakage-free; treat `*_retrospective` as an upper bound.
+- Everything runs on CPU (no GPU needed). Install the smaller CPU build of PyTorch with
+  `pip install torch --index-url https://download.pytorch.org/whl/cpu`.
 - With ~4,400 hours the test set is ~880 hours; a longer range gives more stable comparisons.

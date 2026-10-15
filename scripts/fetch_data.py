@@ -8,7 +8,7 @@ Requires a free OpenAQ API key: https://explore.openaq.org/register
 Usage:
     python scripts/fetch_data.py                 # uses configs/default.yaml
     python scripts/fetch_data.py --dry_run       # list stations/sensors only, download nothing
-    python scripts/fetch_data.py --datetime_from 2026-04-01 --datetime_to 2026-09-30 \
+    python scripts/fetch_data.py --datetime_from 2025-10-01 --datetime_to 2026-09-30 \
         --min_station_coverage 0.3
 
 Dates are inclusive local (Asia/Kolkata) dates. Outputs:

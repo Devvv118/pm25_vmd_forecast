@@ -1,6 +1,6 @@
 """
-Hourly PM2.5 forecasting: VMD + BP/LSTM hybrid vs single models vs a
-persistence baseline, run on a single PM2.5 series (by default, the merged
+Hourly PM2.5 forecasting: VMD + BP/LSTM hybrid (causal rolling VMD and
+retrospective VMD) vs single models, tuned LSTM, GBM, SARIMA and persistence, run on a single PM2.5 series (by default, the merged
 Chennai composite produced by scripts/fetch_data.py).
 
 Usage:
@@ -22,6 +22,9 @@ def main():
                          help="PM2.5 series CSV with 'datetime,pm25' columns")
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--out_dir", default="outputs/results")
+    parser.add_argument("--n_seeds", type=int, default=None, help="override n_seeds from the config")
+    parser.add_argument("--no_causal", action="store_true", help="skip the rolling causal VMD")
+    parser.add_argument("--no_retrospective", action="store_true", help="skip the retrospective VMD")
     args = parser.parse_args()
 
     if not os.path.exists(args.csv):
@@ -31,6 +34,10 @@ def main():
         )
 
     cfg = load_config(args.config)
+    if args.n_seeds:
+        cfg.n_seeds = args.n_seeds
+    cfg.run_causal = cfg.run_causal and not args.no_causal
+    cfg.run_retrospective = cfg.run_retrospective and not args.no_retrospective
     results, artifacts = run_pipeline(args.csv, cfg)
 
     name = os.path.basename(args.csv).replace(".csv", "")
@@ -42,9 +49,12 @@ def main():
     print(f"\nResults saved to {results_path}")
     print(f"Prediction/IMF arrays saved to {artifacts_path}")
     print(f"Plot them with: python scripts/plot_results.py --station {name}\n")
-    for model_name, metrics in results.items():
-        if model_name != "per_IMF":
-            print(f"{model_name:15s} {metrics}")
+    print(f"{'model':26s} {'MAE':>14s} {'RMSE':>14s} {'MASE':>14s} {'R2':>14s}")
+    for model_name, m in results.items():
+        if model_name in ("per_IMF", "_meta"):
+            continue
+        f = lambda k: f"{m[k]:.3f}\u00b1{m.get(k + '_std', 0):.3f}" if k in m else "-"
+        print(f"{model_name:26s} {f('MAE'):>14s} {f('RMSE'):>14s} {f('MASE'):>14s} {f('R2'):>14s}")
 
 
 if __name__ == "__main__":

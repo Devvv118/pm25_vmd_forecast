@@ -5,10 +5,18 @@ import os
 import numpy as np
 
 
+def _to_builtin(o):
+    if isinstance(o, np.generic):
+        return o.item()
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    raise TypeError(f"not JSON serialisable: {type(o)}")
+
+
 def save_json(data: dict, path: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=2, default=_to_builtin)
 
 
 def load_json(path: str) -> dict:
