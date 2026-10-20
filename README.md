@@ -1,8 +1,8 @@
-# Chennai Hourly PM2.5 Forecasting — Hybrid VMD + Neural Network
+# Evaluating the Impact of Causal Variational Mode Decomposition on Hourly PM2.5 Forecasts in Chennai
 
 Fetches Chennai PM2.5 from the OpenAQ API, fuses all nearby stations into one
 composite hourly series, then compares: persistence baseline, single BP/LSTM,
-and hybrid VMD+BP / VMD+LSTM (one model per IMF, forecasts summed).
+and VMD hybrids (VMD+BP / VMD+LSTM, one model per IMF, forecasts summed), built with both retrospective and causal decomposition.
 
 ## Quick start
 
